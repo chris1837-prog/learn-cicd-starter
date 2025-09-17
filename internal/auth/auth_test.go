@@ -53,7 +53,3 @@ func TestGetAPIKey_MalformedHeader(t *testing.T) {
 	}
 }
 
-func TestTemporary_CI_ShouldFail(t *testing.T) {
-    t.Fatal("intentional failure for CI verification")
-}
-
