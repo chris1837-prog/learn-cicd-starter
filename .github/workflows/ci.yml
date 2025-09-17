@@ -1,13 +1,15 @@
-
-name: CI
+name: ci
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   tests:
+    name: Tests
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -15,14 +17,15 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: "1.25.1"
 
       - name: Run tests with coverage
         run: go test -cover ./...
 
-  Style:
+  style:
     name: Style
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -30,18 +33,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: "1.25.1"
 
-      # Format-Check (falil, if the formattin have issues)
-      - name: Check formatting (gofmt)
-        run: |
-          CHANGED="$(gofmt -s -l .)"
-          if [ -n "$CHANGED" ]; then
-            echo "gofmt found unformatted files:"
-            echo "$CHANGED"
-            echo
-            echo "Run: gofmt -s -w ."
-            exit 1
-          fi
-          echo "Formatting looks good ✅"
+      - name: Check formatting
+        run: test -z $(go fmt ./...)
 
