@@ -6,6 +6,7 @@ import (
 	"net/http"
 )
 
+// respondWithError writes an error message as JSON and logs if needed.
 func respondWithError(w http.ResponseWriter, code int, msg string, logErr error) {
 	if logErr != nil {
 		log.Println(logErr)
@@ -16,19 +17,23 @@ func respondWithError(w http.ResponseWriter, code int, msg string, logErr error)
 	type errorResponse struct {
 		Error string `json:"error"`
 	}
-	respondWithJSON(w, code, errorResponse{
-		Error: msg,
-	})
+	respondWithJSON(w, code, errorResponse{Error: msg})
 }
 
+// respondWithJSON marshals the payload and writes it to the ResponseWriter.
+// Fix: check write error to satisfy gosec G104.
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	dat, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error marshalling JSON: %s", err)
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(code)
-	w.Write(dat)
+
+	// ✅ Fix for G104: check the write error.
+	if _, err := w.Write(dat); err != nil {
+		log.Printf("Error writing response: %s", err)
+	}
 }
