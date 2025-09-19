@@ -14,7 +14,10 @@ def health():
 def index():
     return jsonify(app="notely", message="Hallo von Docker + ngrok!", project=PROJECT_ID)
 
+@app.get("/favicon.ico")
+def favicon():
+    return ("", 204)  # Kein Inhalt, aber OK
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))  # Lies den Port aus .env (Fallback 8080)
     app.run(host="0.0.0.0", port=port)
-

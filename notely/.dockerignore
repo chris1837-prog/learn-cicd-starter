@@ -4,4 +4,7 @@ __pycache__/
 *.pyd
 .env
 .git
+.gitignore
+.vscode/
+.idea/
 .DS_Store
