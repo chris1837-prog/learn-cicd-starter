@@ -1,3 +1,5 @@
+name: cd
+
 on:
   push:
     branches: [main]   # runs when code lands on main (merge or direct push)
@@ -20,4 +22,26 @@ jobs:
 
       - name: Build production binary
         run: ./scripts/buildprod.sh
+
+      # Docker-Build & Tagging Artifact
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (no push)
+        run: |
+          docker build -t notely:dev ./notely
+
+      - name: Tag Docker image with Artifact Registry name
+        run: |
+          REGION=us-central1
+          PROJECT_ID=notely
+          REPOSITORY=notely-ar-repo
+          IMAGE=notely
+          TAG=latest
+          docker tag notely:dev "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${TAG}"
+
+      - name: Show Docker images
+        run: docker images
+
+
 
