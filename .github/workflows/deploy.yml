@@ -54,8 +54,8 @@ jobs:
         run: |
           set -e
           GOOSE_VERSION=v3.20.0
-          curl -sSL -o goose.tar.gz https://github.com/pressly/goose/releases/download/${GOOSE_VERSION}/goose_Linux_x86_64.tar.gz
-          tar -xzf goose.tar.gz goose
+          curl -sSL -o goose.zip https://github.com/pressly/goose/releases/download/${GOOSE_VERSION}/goose_Linux_x86_64.zip
+          unzip goose.zip goose
           sudo mv goose /usr/local/bin/
           goose -version
 
