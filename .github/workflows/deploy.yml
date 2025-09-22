@@ -2,7 +2,9 @@ name: CI/CD
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ]   # Trigger on push to main branch
+  pull_request:
+    branches: [ "main" ]   # Trigger on PRs against main (build/test only)
 
 jobs:
   build:
@@ -16,7 +18,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install deps (optional for tests)
+      - name: Install deps (optional)
         run: |
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           python --version
@@ -28,28 +30,41 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    if: ${{ secrets.GCP_SERVICE_ACCOUNT != '' }}   # Guard: nur deployen, wenn Creds vorhanden
+    env:
+      HAS_GCP_CREDS: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      ARTIFACT_REPO:  ${{ secrets.ARTIFACT_REPO }}
+      REGION: us-central1
+      IMAGE_URL: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REPO }}/notely:latest
     steps:
+      - name: No creds -> skip deploy
+        if: env.HAS_GCP_CREDS == ''
+        run: |
+          echo "No GCP credentials found. Skipping Cloud Run deploy."
+          echo "Local deploy handled via Docker + ngrok."
+
       - name: Checkout
+        if: env.HAS_GCP_CREDS != ''
         uses: actions/checkout@v4
 
       - name: Set up gcloud
+        if: env.HAS_GCP_CREDS != ''
         uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          service_account_key: ${{ env.HAS_GCP_CREDS }}
           export_default_credentials: true
 
-      # Optional: Docker auth für Artifact Registry (falls pushen nötig ist)
       - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev -q
+        if: env.HAS_GCP_CREDS != ''
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev -q
 
-      # Beispiel: wir deployen die LATEST-Version aus Artifact Registry
       - name: Deploy to Cloud Run
+        if: env.HAS_GCP_CREDS != ''
         run: |
           gcloud run deploy notely \
-            --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REPO }}/notely:latest \
-            --region us-central1 \
+            --image ${{ env.IMAGE_URL }} \
+            --region ${{ env.REGION }} \
             --allow-unauthenticated \
-            --project ${{ secrets.GCP_PROJECT_ID }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
             --max-instances=4
