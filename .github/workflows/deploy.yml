@@ -2,9 +2,9 @@ name: CI/CD
 
 on:
   push:
-    branches: [ "main" ]   # Trigger on push to main branch
+    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]   # Trigger on PRs against main (build/test only)
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -30,23 +30,50 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # job-wide env (incl. DB URL from secret)
     env:
       HAS_GCP_CREDS: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       ARTIFACT_REPO:  ${{ secrets.ARTIFACT_REPO }}
       REGION: us-central1
       IMAGE_URL: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REPO }}/notely:latest
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
     steps:
-      - name: No creds -> skip deploy
+      - name: No creds -> skip deploy (but still run DB checks if present)
         if: env.HAS_GCP_CREDS == ''
         run: |
-          echo "No GCP credentials found. Skipping Cloud Run deploy."
+          echo "No GCP credentials found. Will skip Cloud Run deploy."
           echo "Local deploy handled via Docker + ngrok."
 
       - name: Checkout
-        if: env.HAS_GCP_CREDS != ''
         uses: actions/checkout@v4
 
+      # --- MIGRATIONS: install goose + run up BEFORE deploy ---
+      - name: Install goose (DB migration tool)
+        run: |
+          set -e
+          GOOSE_VERSION=v3.20.0
+          curl -sSL -o goose.zip https://github.com/pressly/goose/releases/download/${GOOSE_VERSION}/goose_Linux_x86_64.zip
+          unzip goose.zip goose
+          sudo mv goose /usr/local/bin/
+          goose -version
+
+      # Passe MIGRATIONS_DIR ggf. an: z. B. "./migrations" oder "./notely/migrations"
+      - name: Run DB migrations
+        env:
+          # ensure DATABASE_URL available to goose
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          MIGRATIONS_DIR: ./migrations
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL is empty. Skipping migrations."
+            exit 0
+          fi
+          echo "Running migrations in ${MIGRATIONS_DIR} against ${DATABASE_URL%%\?*}"
+          goose -dir "${MIGRATIONS_DIR}" postgres "${DATABASE_URL}" up
+
+      # --- REAL DEPLOY only if creds exist ---
       - name: Set up gcloud
         if: env.HAS_GCP_CREDS != ''
         uses: google-github-actions/setup-gcloud@v2
