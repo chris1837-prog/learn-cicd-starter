@@ -1,27 +1,25 @@
 FROM python:3.12-slim
-# Erklärung: Schlankes Python-Basisimage (klein & schnell)
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
-# Erklärung: Keine .pyc-Dateien; sofortige Ausgabe im Terminal (kein Buffering)
 
 WORKDIR /app
-# Erklärung: Setzt das Arbeitsverzeichnis im Container auf /app
 
+# Dependencies zuerst (bessere Caches)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Erklärung: Zuerst nur Abhängigkeiten kopieren und installieren (bessere Docker-Layer-Caches)
 
+# App-Code kopieren
 COPY . .
-# Erklärung: Danach deinen App-Code ins Image kopieren
 
+# Defaults (kannst du beim Run überschreiben)
 ENV PROJECT_ID=notely
-ENV PORT=8000
-# Erklärung: Standard-ENV im Container (kannst du beim Run überschreiben)
+ENV PORT=8080
+EXPOSE 8080
 
-EXPOSE 8000
-# Erklärung: Dokumentiert, welchen Port der Container anbietet
+# Robuster Prod-Server für Flask
+# shell-form, damit $PORT expandiert
+CMD sh -c 'gunicorn -b 0.0.0.0:${PORT:-8080} app:app'
 
-CMD ["python", "app.py"]
-# Erklärung: Startkommando – führt deine Flask-App aus
+
 
