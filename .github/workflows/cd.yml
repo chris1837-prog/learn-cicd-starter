@@ -8,6 +8,10 @@ jobs:
   Deploy:
     runs-on: ubuntu-latest
 
+    # evaluate once whether a GCP service account secret exists
+    env:
+      HAS_GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS != '' }}
+
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -23,7 +27,20 @@ jobs:
       - name: Build production binary
         run: ./scripts/buildprod.sh
 
-      # Docker-Build & Tagging Artifact
+      # Optional: authenticate gcloud only if secret is present
+      - name: Setup gcloud (optional)
+        if: ${{ env.HAS_GCP_CREDENTIALS == 'true' }}
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: notely
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+          export_default_credentials: true
+
+      - name: Verify gcloud auth (optional)
+        if: ${{ env.HAS_GCP_CREDENTIALS == 'true' }}
+        run: gcloud config list
+
+      # Build Docker image locally (always)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -43,5 +60,15 @@ jobs:
       - name: Show Docker images
         run: docker images
 
-
-
+      # Optional: submit build to Cloud Build (only if secret exists)
+      - name: Build & push image to Artifact Registry (optional)
+        if: ${{ env.HAS_GCP_CREDENTIALS == 'true' }}
+        run: |
+          REGION=us-central1
+          PROJECT_ID=notely
+          REPOSITORY=notely-ar-repo
+          IMAGE=notely
+          TAG=latest
+          IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${TAG}"
+          echo "Submitting build to Cloud Build → ${IMAGE_URI}"
+          gcloud builds submit ./notely --tag "$IMAGE_URI"
